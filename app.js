@@ -733,7 +733,7 @@
 
   toggleFiltersBtn.addEventListener("click", () => {
     const collapsed = controlsPanel.classList.toggle("collapsed-filters");
-    toggleFiltersBtn.textContent = collapsed ? "絞り込みを表示" : "絞り込みを隠す";
+    toggleFiltersBtn.textContent = collapsed ? "絞り込みを開く ▾" : "絞り込みを隠す ▴";
   });
 
   legendToggleBtn.addEventListener("click", () => {
@@ -741,11 +741,13 @@
     legendToggleBtn.textContent = collapsed ? "凡例 ▴" : "凡例 ▾";
   });
 
-  // スマホ初期状態設定
+  // スマホ初期状態設定（地図を広く、一覧では絞り込みを初期折りたたみ）
   setMobileTab("map");
   if (window.innerWidth <= 820) {
     mapLegend.classList.add("collapsed");
     legendToggleBtn.textContent = "凡例 ▴";
+    controlsPanel.classList.add("collapsed-filters");
+    toggleFiltersBtn.textContent = "絞り込みを開く ▾";
   }
 
   // 初回描画
