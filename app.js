@@ -64,6 +64,7 @@
   const railwaysCheck = document.getElementById("railwaysCheck");
   const stationCompanyBar = document.getElementById("stationCompanyBar");
   const circlesCheck = document.getElementById("circlesCheck");
+  const liteModeCheck = document.getElementById("liteModeCheck");
   const resetFiltersBtn = document.getElementById("resetFiltersBtn");
   const spotListEl = document.getElementById("spotList");
   const visibleCountEl = document.getElementById("visibleCount");
@@ -82,7 +83,8 @@
   const focusOriginBtn = document.getElementById("focusOriginBtn");
   const fitKyotoBtn = document.getElementById("fitKyotoBtn");
 
-  // 状態管理（初期表示は出町柳駅から20km以内）
+  // 状態管理（初期表示は出町柳駅から20km以内、スマホ時は初期で軽量化モードON）
+  const isMobileInit = window.innerWidth <= 820;
   const state = {
     ranks: new Set(["S", "A", "B"]),
     area: "ALL",
@@ -91,8 +93,17 @@
     search: "",
     nightOnly: false,
     stationCompanies: new Set(["keihan", "hankyu", "jr", "eiden"]),
+    liteMode: isMobileInit,
+    listLimit: 30,
     selectedId: null
   };
+
+  function applyLiteMode() {
+    document.body.classList.toggle("lite-mode", state.liteMode);
+    liteModeCheck.checked = state.liteMode;
+  }
+
+  applyLiteMode();
 
   // エリア選択肢を生成
   const uniqueAreas = Array.from(new Set(enrichedSpots.map((s) => s.area)));
@@ -123,7 +134,8 @@
   const map = L.map("map", {
     center: [origin.lat, origin.lng],
     zoom: 12,
-    zoomControl: true
+    zoomControl: true,
+    preferCanvas: true
   });
 
   // APIキー不要の地図タイル（国土地理院・OpenStreetMap）
@@ -436,6 +448,7 @@
           <span>📍 ${spot.area}（${spot.location}）</span>
           <span>🧭 中心圏内 <strong>約${spot.distanceKm.toFixed(1)}km</strong>（${spot.direction}方面）</span>
           <span>🍂 例年の見頃：${spot.bestTime}</span>
+          <span>💴 拝観料等：<strong>${spot.fee || "要確認"}</strong></span>
           ${nightLine}
         </div>
         <div class="popup-desc">${spot.highlight}</div>
@@ -509,7 +522,11 @@
       if (panTo) {
         const targetZoom = Math.max(map.getZoom(), 14);
         setTimeout(() => {
-          map.flyTo([spot.lat, spot.lng], targetZoom, { duration: 0.55 });
+          if (state.liteMode) {
+            map.setView([spot.lat, spot.lng], targetZoom, { animate: false });
+          } else {
+            map.flyTo([spot.lat, spot.lng], targetZoom, { duration: 0.55 });
+          }
           marker.openPopup();
         }, window.innerWidth <= 820 ? 100 : 0);
       } else {
@@ -523,16 +540,35 @@
     visibleCountEl.textContent = list.length;
     mobileTabCountEl.textContent = list.length;
 
-    // マーカー更新
+    // マーカー更新（軽量化モード時はCanvas描画のcircleMarkerを使用）
     markersLayer.clearLayers();
     markerById.clear();
 
-    list.forEach((spot) => {
-      const zOffset = spot.rank === "S" ? 1000 : spot.rank === "A" ? 500 : 100;
-      const marker = L.marker([spot.lat, spot.lng], {
-        icon: createSpotIcon(spot.rank),
-        zIndexOffset: zOffset
-      });
+    const rankColors = { S: "#b81d24", A: "#d95f18", B: "#b3861d" };
+    const rankRadii = { S: 9, A: 7, B: 5.5 };
+
+    // B -> A -> S の順に追加してSが最前面に来るようにする
+    const drawOrder = state.liteMode
+      ? [...list].sort((a, b) => RANK_ORDER[b.rank] - RANK_ORDER[a.rank])
+      : list;
+
+    drawOrder.forEach((spot) => {
+      let marker;
+      if (state.liteMode) {
+        marker = L.circleMarker([spot.lat, spot.lng], {
+          radius: rankRadii[spot.rank],
+          color: spot.rank === "S" ? "#ffd166" : "#ffffff",
+          weight: spot.rank === "S" ? 2.2 : 1.5,
+          fillColor: rankColors[spot.rank],
+          fillOpacity: 0.92
+        });
+      } else {
+        const zOffset = spot.rank === "S" ? 1000 : spot.rank === "A" ? 500 : 100;
+        marker = L.marker([spot.lat, spot.lng], {
+          icon: createSpotIcon(spot.rank),
+          zIndexOffset: zOffset
+        });
+      }
 
       marker.bindPopup(buildPopupHtml(spot), { maxWidth: 320 });
       marker.on("click", () => {
@@ -543,7 +579,7 @@
       markerById.set(spot.id, marker);
     });
 
-    // リスト更新
+    // リスト更新（軽量化モード時は段階表示でDOM数を抑制）
     spotListEl.innerHTML = "";
     if (list.length === 0) {
       spotListEl.innerHTML =
@@ -551,8 +587,9 @@
       return;
     }
 
+    const displayList = state.liteMode ? list.slice(0, state.listLimit) : list;
     const frag = document.createDocumentFragment();
-    list.forEach((spot) => {
+    displayList.forEach((spot) => {
       const card = document.createElement("div");
       card.className = "spot-card" + (state.selectedId === spot.id ? " selected" : "");
       card.dataset.id = spot.id;
@@ -563,6 +600,10 @@
 
       const nightBadge = spot.isNight
         ? `<span class="meta-night">🌙 夜間あり</span>`
+        : "";
+
+      const feeBadge = spot.fee
+        ? `<span class="meta-fee">💴 ${spot.fee}</span>`
         : "";
 
       card.innerHTML = `
@@ -576,6 +617,7 @@
         <div class="spot-meta">
           <span class="meta-pill">${spot.area}（${spot.location}）</span>
           <span class="meta-pill">🍂 ${spot.bestTime}</span>
+          ${feeBadge}
           ${nightBadge}
         </div>
         <div class="spot-highlight">${spot.highlight}</div>
@@ -584,6 +626,18 @@
       card.addEventListener("click", () => selectSpot(spot, true));
       frag.appendChild(card);
     });
+
+    if (state.liteMode && list.length > state.listLimit) {
+      const moreBtn = document.createElement("button");
+      moreBtn.type = "button";
+      moreBtn.className = "load-more-btn";
+      moreBtn.textContent = `さらに表示する（残り ${list.length - state.listLimit} 件）`;
+      moreBtn.addEventListener("click", () => {
+        state.listLimit += 30;
+        render();
+      });
+      frag.appendChild(moreBtn);
+    }
 
     spotListEl.appendChild(frag);
   }
@@ -654,6 +708,13 @@
 
   circlesCheck.addEventListener("change", () => {
     renderDistanceCircles();
+  });
+
+  liteModeCheck.addEventListener("change", (e) => {
+    state.liteMode = e.target.checked;
+    state.listLimit = 30;
+    applyLiteMode();
+    render();
   });
 
   resetFiltersBtn.addEventListener("click", () => {

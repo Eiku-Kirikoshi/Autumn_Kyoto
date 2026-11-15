@@ -448,6 +448,43 @@ body {
   border-radius: 5px;
 }
 
+.meta-fee {
+  background: #eef6ef;
+  color: #1e5c2b;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-weight: 500;
+}
+
+.load-more-btn {
+  width: 100%;
+  padding: 11px 14px;
+  margin-top: 4px;
+  background: #fff;
+  border: 1.5px dashed #c8b39a;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-s);
+  cursor: pointer;
+}
+
+.load-more-btn:hover {
+  background: var(--bg-subtle);
+}
+
+/* 軽量化モード時はGPU負荷の高いCSSフィルター・影アニメーションを抑制 */
+body.lite-mode .tile-simple-mono {
+  filter: none;
+  opacity: 0.72;
+}
+
+body.lite-mode .spot-card {
+  box-shadow: none;
+  transition: none;
+}
+
 .spot-highlight {
   margin-top: 7px;
   font-size: 12px;
