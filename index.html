@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>京都紅葉マップ｜観光名所ガイド</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Shippori+Mincho:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- サイドバー（検索・フィルタ・スポット一覧） -->
+    <aside class="sidebar" id="sidebar">
+      <header class="sidebar-header">
+        <div class="brand-badge">🍁 KYOTO AUTUMN MAP</div>
+        <h1 class="app-title">京都の紅葉名所マップ</h1>
+        <p class="app-subtitle">20km圏内の紅葉名所を人気度S・A・Bで案内</p>
+      </header>
+
+      <div class="controls-panel">
+        <!-- 検索ボックス -->
+        <div class="search-wrap">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input
+            type="search"
+            id="searchInput"
+            class="search-input"
+            placeholder="スポット名・エリア・見どころで検索..."
+            autocomplete="off"
+          />
+        </div>
+
+        <!-- 人気度フィルタ -->
+        <div class="filter-section">
+          <div class="filter-label">人気度ランク</div>
+          <div class="rank-chips" id="rankFilters">
+            <button type="button" class="rank-chip active" data-rank="S">
+              <span class="rank-dot rank-dot-s">S</span>
+              <span class="rank-text">絶対行くべき</span>
+              <span class="rank-count" id="countS">0</span>
+            </button>
+            <button type="button" class="rank-chip active" data-rank="A">
+              <span class="rank-dot rank-dot-a">A</span>
+              <span class="rank-text">ぜひ行きたい</span>
+              <span class="rank-count" id="countA">0</span>
+            </button>
+            <button type="button" class="rank-chip active" data-rank="B">
+              <span class="rank-dot rank-dot-b">B</span>
+              <span class="rank-text">道中などで</span>
+              <span class="rank-count" id="countB">0</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- エリア＆距離＆ソート -->
+        <div class="filter-row">
+          <select id="areaSelect" class="select-control" aria-label="エリアで絞り込み">
+            <option value="ALL">すべてのエリア</option>
+          </select>
+          <select id="distanceSelect" class="select-control" aria-label="表示範囲">
+            <option value="20" selected>20km以内</option>
+            <option value="10">10km以内</option>
+            <option value="5">5km以内</option>
+            <option value="ALL">すべて（府内全域）</option>
+          </select>
+        </div>
+
+        <div class="filter-row single-row">
+          <select id="sortSelect" class="select-control" aria-label="並び替え">
+            <option value="rank">並び替え：人気度順 (S→A→B)</option>
+            <option value="distance">並び替え：近い順</option>
+          </select>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle-label">
+            <input type="checkbox" id="nightOnlyCheck" />
+            <span>🌙 夜間ライトアップのみ</span>
+          </label>
+          <label class="toggle-label">
+            <input type="checkbox" id="railwaysCheck" checked />
+            <span>🚃 駅を表示</span>
+          </label>
+          <label class="toggle-label">
+            <input type="checkbox" id="circlesCheck" checked />
+            <span>🎯 距離円</span>
+          </label>
+        </div>
+
+        <div class="station-company-bar" id="stationCompanyBar">
+          <button type="button" class="company-chip active" data-company="keihan"><span class="company-dot" style="border-color:#007a33;"></span>京阪</button>
+          <button type="button" class="company-chip active" data-company="hankyu"><span class="company-dot" style="border-color:#6c1d45;"></span>阪急</button>
+          <button type="button" class="company-chip active" data-company="jr"><span class="company-dot" style="border-color:#0072bc;"></span>JR</button>
+          <button type="button" class="company-chip active" data-company="eiden"><span class="company-dot" style="border-color:#6b4c9a;"></span>叡電</button>
+        </div>
+
+        <div class="results-bar">
+          <span>表示中: <strong id="visibleCount">0</strong> / <span id="totalCount">0</span> 件</span>
+          <div class="results-actions">
+            <button type="button" id="toggleFiltersBtn" class="text-btn mobile-only-inline">絞り込みを隠す</button>
+            <button type="button" id="resetFiltersBtn" class="text-btn">条件リセット</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- スポット一覧リスト -->
+      <div class="spot-list" id="spotList" role="list"></div>
+    </aside>
+
+    <!-- 地図エリア -->
+    <main class="map-container">
+      <div id="map"></div>
+
+      <!-- 地図上のフローティングコントロール -->
+      <div class="map-floating-bar">
+        <button type="button" id="locateMeBtn" class="map-btn" title="現在地を表示">
+          📍 現在地
+        </button>
+        <button type="button" id="focusOriginBtn" class="map-btn map-btn-primary" title="初期位置へ戻る">
+          🗺️ 中心へ
+        </button>
+        <button type="button" id="fitKyotoBtn" class="map-btn" title="表示中の全スポットが収まるように調整">
+          🗾 全体
+        </button>
+      </div>
+
+      <!-- 凡例カード -->
+      <div class="map-legend" id="mapLegend">
+        <button type="button" class="legend-toggle-btn" id="legendToggleBtn">凡例 ▾</button>
+        <div class="legend-body" id="legendBody">
+          <div class="legend-title">凡例（人気度）</div>
+          <div class="legend-item"><span class="legend-pin legend-pin-s"></span> <strong>S</strong>：絶対に行くべき名所</div>
+          <div class="legend-item"><span class="legend-pin legend-pin-a"></span> <strong>A</strong>：ぜひ行きたい名所</div>
+          <div class="legend-item"><span class="legend-pin legend-pin-b"></span> <strong>B</strong>：道中などで寄りたい名所</div>
+          <div class="legend-divider"></div>
+          <div class="legend-title">主要駅（鉄道）</div>
+          <div class="legend-item"><span class="legend-pin" style="background:#fff; border-color:#007a33;"></span> 京阪電鉄</div>
+          <div class="legend-item"><span class="legend-pin" style="background:#fff; border-color:#6c1d45;"></span> 阪急電鉄</div>
+          <div class="legend-item"><span class="legend-pin" style="background:#fff; border-color:#0072bc;"></span> JR西日本</div>
+          <div class="legend-item"><span class="legend-pin" style="background:#fff; border-color:#6b4c9a;"></span> 叡山電鉄</div>
+        </div>
+      </div>
+    </main>
+
+    <!-- スマホ専用ボトムタブバー -->
+    <nav class="mobile-tab-bar" id="mobileTabBar" aria-label="表示切替">
+      <button type="button" class="mobile-tab-btn active" data-tab="map">
+        🗺️ 地図を見る
+      </button>
+      <button type="button" class="mobile-tab-btn" data-tab="list">
+        📋 一覧・検索 (<span id="mobileTabCount">0</span>)
+      </button>
+    </nav>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="spots-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
